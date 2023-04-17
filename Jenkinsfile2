@@ -1,0 +1,262 @@
+def BRANCH_NAME = 'main'
+def prepareStages(String name) {
+	def tasks = [:]
+	tasks["prepare_UC00"] = {
+	  stage ("prepare_UC00"){    
+		node("${name}") {
+			dir("${env.custom_var}"){
+				
+					sh 'echo -----------------1'
+					//sh './test.sh UC01_run'
+					//sh './start_test_on_slave.sh scripts/UC00.jmx jmeter-0 profile_prepare'
+					sh './run.sh profile_prepare UC00'	
+						
+
+			}
+		}
+	  }
+	}
+return tasks
+}
+
+
+
+
+def runStages(String name, String profile) {
+	def tasks = [:]
+	tasks["task_1"] = {
+	  stage ("task_1"){    
+		node("${name}") {
+			dir("${env.custom_var}"){
+				if(P_UC01.toString()=="${name}"){			
+					sh "./run.sh ${profile} UC01.jmx"
+				}		
+			}
+		}
+	  }
+	}
+	tasks["task_2"] = {
+	  stage ("task_2"){    
+		node("${name}") {  
+			dir("${env.custom_var}"){
+				if(P_UC02.toString()=="${name}"){
+					sh "./run.sh ${profile} UC02.jmx"
+				}
+			}
+		}
+	  }
+	}
+	tasks["task_3"] = {
+	  stage ("task_3"){    
+		node("${name}") {  
+			dir("${env.custom_var}"){
+				if(P_UC03.toString()=="${name}"){
+					sh "./run.sh ${profile} UC03.jmx"
+				}
+			}
+		}
+	  }
+	}
+	tasks["task_4"] = {
+	  stage ("task_4"){    
+		node("${name}") {  
+			dir("${env.custom_var}"){
+				if(P_UC04.toString()=="${name}"){
+					sh "./run.sh ${profile} UC04.jmx"
+				}
+			}
+		}
+	  }
+	}
+return tasks
+}
+
+
+
+pipeline {
+  parameters { 
+    choice(
+      name: 'P_PROFILE',
+      description: '',
+      choices: ['profile_confirm'] as List
+    )
+    choice(
+      name: 'P_SLAVE1',
+      description: '',
+      choices: ['enable', 'NULL'] as List
+    )
+    choice(
+      name: 'P_UC01',
+      description: '',
+      choices: ['slave1', 'NULL'] as List
+    )	
+    choice(
+      name: 'P_UC02',
+      description: '',
+      choices: ['slave1', 'NULL'] as List
+    )		
+    choice(
+      name: 'P_UC03',
+      description: '',
+      choices: ['slave1', 'NULL'] as List
+    )
+    choice(
+      name: 'P_UC04',
+      description: '',
+      choices: ['slave1', 'NULL'] as List
+    )	
+    choice(
+      name: 'P_HTTP_ON_SLAVE1',
+      description: '',
+      choices: ['enable', 'NULL'] as List
+    )	
+  }  
+  
+  
+  
+  agent none
+  options {
+    skipDefaultCheckout()
+    buildDiscarder(logRotator(
+      numToKeepStr: '10' + (BRANCH_NAME == 'dev' ? '' : '0'),
+      daysToKeepStr: '10' + (BRANCH_NAME == 'dev' ? '' : '0'),
+    ))
+  }
+  stages {
+    stage('Build On slave1') {
+	when {
+		beforeAgent true;
+	    expression {
+            return P_SLAVE1.toString()!='NULL';
+        }        
+    }
+		agent {
+            label 'slave1'
+        }
+		steps {
+			script {
+				scmInfo = checkout scm
+				f = fileExists 'README.md'
+				echo "f=${f}"
+				sh 'chmod +x build.sh'
+				sh 'chmod +x profile_run.sh'
+        sh 'chmod +x run.sh'
+        sh 'chmod +x jmeter-start-test.sh'
+			}		
+		}	
+	}
+
+
+    stage('HTTPserver On slave1') {
+	when {
+		beforeAgent true;
+	    expression {
+            return P_HTTP_ON_SLAVE1.toString()!='NULL';
+        }        
+    }
+		agent {
+            label 'slave1'
+        }
+		steps {
+			script {
+      dir('HTTPserver/HTTPserver/dist') {
+                sh "ps -aux | grep \'[j]ava -jar HTTPserver.jar HTTPserver.log\' | awk \'{print \$2}\'|sudo xargs kill -9 2>&1 &"
+                sh 'JENKINS_NODE_COOKIE=dontKillMe java -jar HTTPserver.jar HTTPserver.log 2>&1 &'
+      }
+			}		
+		}	
+	}
+
+
+
+
+    stage('Prepare') {
+		parallel {
+			stage('Prepare On slave1') {
+				when {
+					beforeAgent true;
+					expression {
+						return P_SLAVE1.toString()!='NULL';
+					}        
+				}
+			    agent {
+                   label 'slave1'
+                }				
+				steps {						
+					script {					
+						def workspace = "${env.WORKSPACE}"
+						echo "Current workspace "+workspace
+						env.custom_var=workspace
+						currtasks1 =  prepareStages("slave1")
+							stage('prepareStages') {
+								parallel currtasks1
+
+							}
+						
+					}	
+				}
+			}
+		
+		}	
+	}
+	
+    stage('Tests') {
+		parallel {
+			stage('Test On slave1') {
+				when {
+					beforeAgent true;
+					expression {
+						return P_SLAVE1.toString()!='NULL';
+					}        
+				}
+			    agent {
+                   label 'slave1'
+                }				
+				steps {						
+					script {
+						echo "Current workspace is ${env.WORKSPACE}"
+						def workspace = "${env.WORKSPACE}"
+						echo "Current workspace "+workspace
+						env.custom_var=workspace
+						currtasks2 =  runStages("slave1", P_PROFILE.toString())
+							stage('Testt') {
+								parallel currtasks2
+							}					
+					}	
+				}
+			}					
+			
+		}	
+	}
+	
+	
+    stage('Stop Tests') {
+		parallel {				
+		stage('Stop HTTPserver On slave1') {
+		when {
+			beforeAgent true;
+			expression {
+				return P_HTTP_ON_SLAVE1.toString()!='NULL';
+			}        
+		}
+			agent {
+				label 'slave1'
+			}
+			steps {
+				script {
+						dir("${env.custom_var}/docs"){
+							//sh './toDisk.sh'				
+						echo "cp data files"	
+						//sh "cp ${env.WORKSPACE}/docs/prepare/toServList.csv /tmp/nt/DL/toServList.csv"
+						}									
+				}		
+			}	
+		}		
+		
+		}	
+	}		
+	
+	
+  }
+ 
+}
