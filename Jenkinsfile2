@@ -29,7 +29,7 @@ def runStages(String name, String profile) {
 		node("${name}") {
 			dir("${env.custom_var}"){
 				if(P_UC01.toString()=="${name}"){			
-					sh "./run.sh ${profile} UC01.jmx"
+					sh "./run.sh ${profile} UC01"
 				}		
 			}
 		}
@@ -40,7 +40,7 @@ def runStages(String name, String profile) {
 		node("${name}") {  
 			dir("${env.custom_var}"){
 				if(P_UC02.toString()=="${name}"){
-					sh "./run.sh ${profile} UC02.jmx"
+					sh "./run.sh ${profile} UC02"
 				}
 			}
 		}
@@ -51,7 +51,7 @@ def runStages(String name, String profile) {
 		node("${name}") {  
 			dir("${env.custom_var}"){
 				if(P_UC03.toString()=="${name}"){
-					sh "./run.sh ${profile} UC03.jmx"
+					sh "./run.sh ${profile} UC03"
 				}
 			}
 		}
@@ -62,7 +62,7 @@ def runStages(String name, String profile) {
 		node("${name}") {  
 			dir("${env.custom_var}"){
 				if(P_UC04.toString()=="${name}"){
-					sh "./run.sh ${profile} UC04.jmx"
+					sh "./run.sh ${profile} UC04"
 				}
 			}
 		}
