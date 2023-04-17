@@ -169,7 +169,7 @@ pipeline {
 
 
 
-
+/*
     stage('Prepare') {
 		parallel {
 			stage('Prepare On slave1') {
@@ -227,7 +227,7 @@ pipeline {
 			}					
 			
 		}	
-	}
+	}*/
 	
 	
     stage('Stop Tests') {
